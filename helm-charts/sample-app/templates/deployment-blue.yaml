@@ -1,0 +1,132 @@
+{{- if .Values.deployment.blue.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sample-app.blueName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sample-app.labels" . | nindent 4 }}
+    app: {{ include "sample-app.name" . }}
+    color: blue
+    version: {{ include "sample-app.blueImageTag" . | quote }}
+spec:
+  replicas: {{ .Values.deployment.blue.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "sample-app.selectorLabels" . | nindent 6 }}
+      color: blue
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.deployment.blue.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        prometheus.io/scrape: "{{ .Values.monitoring.enabled }}"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+      labels:
+        {{- include "sample-app.selectorLabels" . | nindent 8 }}
+        {{- with .Values.deployment.blue.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.workloadIdentity.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        app: {{ include "sample-app.name" . }}
+        color: blue
+        version: {{ include "sample-app.blueImageTag" . | quote }}
+    spec:
+      {{- with .Values.workloadIdentity.enabled }}
+      serviceAccountName: {{ include "sample-app.serviceAccountName" . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ include "sample-app.blueImageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            {{- if .Values.monitoring.enabled }}
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+            {{- end }}
+          env:
+            - name: APP_COLOR
+              value: "blue"
+            {{- range .Values.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+            {{- if .Values.secrets.enabled }}
+            # Secrets injected via environment variables
+            {{- range .Values.secrets.keyvault.secrets }}
+            - name: {{ .envName }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sample-app.fullname" $ }}-secrets
+                  key: {{ .name }}
+                  optional: false
+            {{- end }}
+            {{- end }}
+          {{- if .Values.healthChecks.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthChecks.livenessProbe.path }}
+              port: {{ .Values.healthChecks.livenessProbe.port }}
+            initialDelaySeconds: {{ .Values.healthChecks.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthChecks.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthChecks.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthChecks.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.healthChecks.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthChecks.readinessProbe.path }}
+              port: {{ .Values.healthChecks.readinessProbe.port }}
+            initialDelaySeconds: {{ .Values.healthChecks.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthChecks.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthChecks.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthChecks.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.healthChecks.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.healthChecks.startupProbe.path }}
+              port: {{ .Values.healthChecks.startupProbe.port }}
+            initialDelaySeconds: {{ .Values.healthChecks.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthChecks.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthChecks.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthChecks.startupProbe.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.deployment.blue.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.deployment.blue.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.deployment.blue.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.deployment.blue.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

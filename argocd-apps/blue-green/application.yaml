@@ -1,0 +1,200 @@
+#==============================================================================
+# ArgoCD Application: Sample App with Blue-Green Deployment
+#==============================================================================
+# This ArgoCD Application manages the sample-app Helm chart deployment.
+# It uses a blue-green deployment strategy for zero-downtime updates.
+#
+# The Helm values control which color (blue or green) is currently active
+# and serving traffic via the Kubernetes service selector.
+#
+# To switch traffic between colors:
+# 1. Deploy new version to inactive color
+# 2. Update the 'activeColor' value in values.yaml (blue -> green or green -> blue)
+# 3. ArgoCD will sync and update the service selector
+#==============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-app-production
+  namespace: argocd
+  labels:
+    app: sample-app
+    environment: production
+    deployment-strategy: blue-green
+  finalizers:
+    # Ensure resources are deleted when application is deleted
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Deployment metadata
+    deployedAt: "2024-01-15T10:00:00Z"
+    deployedBy: "azure-devops"
+    buildId: ""
+spec:
+  # Project this application belongs to
+  project: production
+
+  # Source configuration
+  source:
+    # Repository URL (GitOps repository)
+    repoURL: https://dev.azure.com/MyOrg/MyProject/_git/GitOps-Repository
+    
+    # Target revision (Helm chart version)
+    targetRevision: 1.0.0
+    
+    # Path to Helm chart within the repository
+    path: helm-charts/sample-app
+    
+    # Helm-specific configuration
+    helm:
+      # Release name
+      releaseName: sample-app
+      
+      # Value files to apply (in order)
+      valueFiles:
+        - values.yaml
+        - environments/production/values-production.yaml
+      
+      # Additional parameters (can override values)
+      parameters:
+        - name: image.pullPolicy
+          value: IfNotPresent
+        - name: deployment.activeColor
+          value: blue  # Current active color
+
+  # Destination cluster
+  destination:
+    # Server URL (use 'https://kubernetes.default.svc' for in-cluster)
+    server: https://kubernetes.default.svc
+    namespace: production
+
+  # Sync policy
+  syncPolicy:
+    # Automated sync options
+    automated:
+      # Automatically sync when changes detected
+      prune: true
+      selfHeal: true
+      # Don't auto-sync to allow manual approval for production
+      allowEmpty: false
+    
+    # Retry failed syncs
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+    
+    # Sync options
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - Validate=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+
+  # Revision history limit
+  revisionHistoryLimit: 10
+
+  # Ignore differences (useful for fields managed by other controllers)
+  ignoreDifferences:
+    # Ignore replica count if managed by HPA
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    # Ignore image tag if managed by image updater
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/image
+
+---
+#==============================================================================
+# ArgoCD Project: Production
+#==============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: production
+  namespace: argocd
+  description: Production environment applications
+spec:
+  # Description
+  description: Production environment for mission-critical applications
+
+  # Allowed source repositories
+  sourceRepos:
+    - https://dev.azure.com/MyOrg/MyProject/_git/GitOps-Repository
+    - https://charts.helm.sh/stable
+    - https://charts.bitnami.com/bitnami
+
+  # Allowed destination clusters and namespaces
+  destinations:
+    - namespace: production
+      server: https://kubernetes.default.svc
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+
+  # Allowed resource kinds
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+
+  namespaceResourceWhitelist:
+    - group: 'apps'
+      kind: Deployment
+    - group: 'apps'
+      kind: StatefulSet
+    - group: 'apps'
+      kind: DaemonSet
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: ''
+      kind: ServiceAccount
+    - group: 'autoscaling'
+      kind: HorizontalPodAutoscaler
+    - group: 'policy'
+      kind: PodDisruptionBudget
+    - group: 'networking.k8s.io'
+      kind: Ingress
+    - group: 'networking.k8s.io'
+      kind: NetworkPolicy
+    - group: 'secrets-store.csi.x-k8s.io'
+      kind: SecretProviderClass
+
+  # Denied resource kinds
+  namespaceResourceBlacklist:
+    - group: ''
+      kind: ResourceQuota
+
+  # Role-based access
+  roles:
+    - name: developer
+      description: Developer access (read-only)
+      policies:
+        - p, proj:production:developer, applications, get, production/*, allow
+      groups:
+        - developer-group-id
+    
+    - name: ops
+      description: Operations access (sync allowed)
+      policies:
+        - p, proj:production:ops, applications, *, production/*, allow
+        - p, proj:production:ops, exec, create, production/*, allow
+      groups:
+        - ops-group-id
+
+  # Orphaned resources monitoring
+  orphanedResources:
+    warn: true

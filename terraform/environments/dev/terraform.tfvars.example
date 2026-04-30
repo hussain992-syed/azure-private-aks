@@ -1,0 +1,24 @@
+# Terraform Variables Example
+# Copy this file to terraform.tfvars and update with your values
+
+# Admin CIDR blocks (your IP addresses for SSH access)
+# Get your public IP: curl ifconfig.me
+admin_cidr_blocks = [
+  "YOUR_PUBLIC_IP/32"
+]
+
+# Azure AD Group Object IDs for cluster admin access
+# Create a group in Azure AD and add your users
+# Get group object ID: az ad group show --group "YourGroup" --query objectId -o tsv
+admin_group_object_ids = [
+  "YOUR_AZURE_AD_GROUP_OBJECT_ID"
+]
+
+# Azure DevOps Service Principal Object ID
+# From the service principal created for CI/CD
+# Get object ID: az ad sp show --id <app-id> --query objectId -o tsv
+devops_service_principal_id = "YOUR_DEVOPS_SP_OBJECT_ID"
+
+# Terraform Service Principal Object ID (for Key Vault access during deployment)
+# From the service principal used to run Terraform
+terraform_sp_object_id = "YOUR_TERRAFORM_SP_OBJECT_ID"

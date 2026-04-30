@@ -1,0 +1,259 @@
+#------------------------------------------------------------------------------
+# Common Configuration
+#------------------------------------------------------------------------------
+nameOverride: ""
+fullnameOverride: ""
+
+#------------------------------------------------------------------------------
+# Image Configuration
+#------------------------------------------------------------------------------
+image:
+  repository: ""  # Will be set by CI/CD pipeline (e.g., myacr.azurecr.io/sample-app)
+  tag: ""         # Will be set by CI/CD pipeline (e.g., 1.0.0 or git sha)
+  pullPolicy: IfNotPresent
+
+#------------------------------------------------------------------------------
+# Deployment Configuration (Blue-Green)
+#------------------------------------------------------------------------------
+deployment:
+  # Which color is currently active: "blue" or "green"
+  activeColor: blue
+  
+  # Blue deployment configuration
+  blue:
+    enabled: true
+    replicas: 3
+    imageTag: ""  # If not set, uses global image.tag
+    
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    
+    podAnnotations: {}
+    podLabels: {}
+    
+    nodeSelector:
+      workload: app
+    
+    tolerations: []
+    
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - sample-app
+              topologyKey: kubernetes.io/hostname
+
+  # Green deployment configuration
+  green:
+    enabled: false  # Disabled by default, enabled during deployment
+    replicas: 3
+    imageTag: ""    # New version being deployed
+    
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    
+    podAnnotations: {}
+    podLabels: {}
+    
+    nodeSelector:
+      workload: app
+    
+    tolerations: []
+    
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - sample-app
+              topologyKey: kubernetes.io/hostname
+
+#------------------------------------------------------------------------------
+# Service Configuration
+#------------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+  # The selector is dynamically set based on activeColor
+  
+  # Additional service ports
+  additionalPorts: []
+  # - name: metrics
+  #   port: 9090
+  #   targetPort: 9090
+
+#------------------------------------------------------------------------------
+# Ingress Configuration
+#------------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: sample-app.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+#------------------------------------------------------------------------------
+# Azure Workload Identity Configuration
+#------------------------------------------------------------------------------
+workloadIdentity:
+  enabled: true
+  serviceAccount:
+    name: sample-app-sa
+    annotations:
+      # This will be set by the deployment pipeline or Terraform
+      azure.workload.identity/client-id: ""  # Workload identity client ID
+  
+  # Pod labels for workload identity
+  podLabels:
+    azure.workload.identity/use: "true"
+
+#------------------------------------------------------------------------------
+# Environment Variables and Secrets
+#------------------------------------------------------------------------------
+env:
+  # Regular environment variables
+  - name: ASPNETCORE_ENVIRONMENT
+    value: "Production"
+  - name: LOG_LEVEL
+    value: "Information"
+
+  # Secrets from Key Vault (using CSI driver)
+secrets:
+  enabled: true
+  keyvault:
+    name: ""  # Key Vault name (set by pipeline)
+    tenantId: ""  # Azure AD Tenant ID
+    secrets:
+      - name: database-connection-string
+        envName: DATABASE_CONNECTION_STRING
+      - name: api-key
+        envName: API_KEY
+
+#------------------------------------------------------------------------------
+# Health Checks
+#------------------------------------------------------------------------------
+healthChecks:
+  livenessProbe:
+    enabled: true
+    path: /health/live
+    port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    enabled: true
+    path: /health/ready
+    port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  startupProbe:
+    enabled: true
+    path: /health/startup
+    port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+
+#------------------------------------------------------------------------------
+# Security Context
+#------------------------------------------------------------------------------
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+#------------------------------------------------------------------------------
+# Monitoring
+#------------------------------------------------------------------------------
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: 30s
+    scrapeTimeout: 10s
+    path: /metrics
+    port: metrics
+  
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+
+#------------------------------------------------------------------------------
+# Horizontal Pod Autoscaler
+#------------------------------------------------------------------------------
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max
+
+#------------------------------------------------------------------------------
+# Pod Disruption Budget
+#------------------------------------------------------------------------------
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  # maxUnavailable: 1

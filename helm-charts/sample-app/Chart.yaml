@@ -1,0 +1,16 @@
+apiVersion: v2
+name: sample-app
+description: A sample application Helm chart for blue-green deployments with workload identity
+version: 1.0.0
+appVersion: "1.0.0"
+type: application
+keywords:
+  - sample
+  - workload-identity
+  - blue-green
+home: https://github.com/yourorg/sample-app
+sources:
+  - https://github.com/yourorg/sample-app
+maintainers:
+  - name: Platform Team
+    email: platform@company.com

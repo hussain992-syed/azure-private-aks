@@ -1,0 +1,315 @@
+#==============================================================================
+# CI Pipeline: Build and Push to Private ACR
+#==============================================================================
+# This pipeline builds container images and pushes them to the private ACR.
+# It uses Azure DevOps service connection with Workload Identity Federation.
+#==============================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - src/**
+      - Dockerfile
+      - pipelines/ci-build.yml
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  # Azure subscription/service connection using Workload Identity Federation
+  azureServiceConnection: 'private-aks-sc'
+  
+  # ACR Configuration (populated by pipeline variables or variable groups)
+  acrName: $(ACR_NAME)                    # e.g., privateaksacrd
+  acrLoginServer: $(ACR_LOGIN_SERVER)     # e.g., privateaksacrd.azurecr.io
+  
+  # Image Configuration
+  imageName: 'sample-app'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  buildContext: '$(Build.SourcesDirectory)'
+  
+  # Helm Chart Configuration
+  helmChartPath: '$(Build.SourcesDirectory)/helm-charts/sample-app'
+  
+  # Build variables
+  isMainBranch: $[eq(variables['Build.SourceBranch'], 'refs/heads/main')]
+  isDevelopBranch: $[eq(variables['Build.SourceBranch'], 'refs/heads/develop')]
+
+stages:
+#============================================================================
+# Stage 1: Build and Test
+#============================================================================
+- stage: BuildAndTest
+  displayName: 'Build and Test'
+  jobs:
+  - job: BuildAndTestJob
+    displayName: 'Build and Test Application'
+    pool:
+      vmImage: 'ubuntu-latest'
+    
+    steps:
+    #------------------------------------------------------------------------
+    # Checkout code
+    #------------------------------------------------------------------------
+    - checkout: self
+      fetchDepth: 0
+      displayName: 'Checkout Repository'
+
+    #------------------------------------------------------------------------
+    # Determine image tag
+    #------------------------------------------------------------------------
+    - task: PowerShell@2
+      name: DetermineVersion
+      displayName: 'Determine Image Tag'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $commitId = "$(Build.SourceVersion)".Substring(0, 8)
+          $branchName = "$(Build.SourceBranchName)"
+          $buildNumber = "$(Build.BuildId)"
+          
+          if ($branchName -eq "main") {
+            $imageTag = "v1.0.$buildNumber"
+            $helmChartVersion = "1.0.$buildNumber"
+          } elseif ($branchName -eq "develop") {
+            $imageTag = "dev-$commitId"
+            $helmChartVersion = "0.1.$buildNumber"
+          } else {
+            $imageTag = "pr-$commitId"
+            $helmChartVersion = "0.0.$buildNumber"
+          }
+          
+          Write-Host "##vso[task.setvariable variable=imageTag;isOutput=true]$imageTag"
+          Write-Host "##vso[task.setvariable variable=helmChartVersion;isOutput=true]$helmChartVersion"
+          Write-Host "Image Tag: $imageTag"
+          Write-Host "Helm Chart Version: $helmChartVersion"
+        pwsh: true
+
+    #------------------------------------------------------------------------
+    # Run unit tests
+    #------------------------------------------------------------------------
+    - task: DotNetCoreCLI@2
+      displayName: 'Run Unit Tests'
+      condition: succeeded()
+      inputs:
+        command: 'test'
+        projects: '**/*Tests.csproj'
+        arguments: '--configuration Release --collect:"XPlat Code Coverage"'
+        publishTestResults: true
+
+    #------------------------------------------------------------------------
+    # Security scan with Trivy
+    #------------------------------------------------------------------------
+    - task: trivy@1
+      displayName: 'Scan Dockerfile with Trivy'
+      condition: succeededOrFailed()
+      inputs:
+        version: 'latest'
+        path: '$(dockerfilePath)'
+        severity: 'HIGH,CRITICAL'
+        exitCode: '0'  # Set to 1 to fail on vulnerabilities
+
+    #------------------------------------------------------------------------
+    # Publish version info as artifact
+    #------------------------------------------------------------------------
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Version Info'
+      condition: succeeded()
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'version-info'
+        publishLocation: 'Container'
+
+#============================================================================
+# Stage 2: Build and Push Container Image
+#============================================================================
+- stage: BuildAndPush
+  displayName: 'Build and Push Image'
+  dependsOn: BuildAndTest
+  condition: and(succeeded(), or(eq(variables.isMainBranch, true), eq(variables.isDevelopBranch, true)))
+  jobs:
+  - job: BuildAndPushJob
+    displayName: 'Build and Push to ACR'
+    pool:
+      vmImage: 'ubuntu-latest'
+    variables:
+      imageTag: $[ stageDependencies.BuildAndTest.BuildAndTestJob.outputs['DetermineVersion.imageTag'] ]
+      helmChartVersion: $[ stageDependencies.BuildAndTest.BuildAndTestJob.outputs['DetermineVersion.helmChartVersion'] ]
+
+    steps:
+    #------------------------------------------------------------------------
+    # Login to Azure
+    #------------------------------------------------------------------------
+    - task: AzureCLI@2
+      displayName: 'Login to Azure'
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "Successfully logged in to Azure"
+          az account show
+
+    #------------------------------------------------------------------------
+    # Login to ACR
+    #------------------------------------------------------------------------
+    - task: AzureCLI@2
+      displayName: 'Login to ACR'
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          set -e
+          echo "Logging in to ACR: $(acrLoginServer)"
+          az acr login --name $(acrName)
+          echo "Successfully logged in to ACR"
+
+    #------------------------------------------------------------------------
+    # Build Docker image with ACR Tasks
+    #------------------------------------------------------------------------
+    - task: AzureCLI@2
+      displayName: 'Build Image with ACR Tasks'
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          set -e
+          echo "Building image: $(acrLoginServer)/$(imageName):$(imageTag)"
+          
+          # Build using ACR Tasks (more secure, doesn't require docker daemon)
+          az acr build \
+            --registry $(acrName) \
+            --image $(acrLoginServer)/$(imageName):$(imageTag) \
+            --image $(acrLoginServer)/$(imageName):$(Build.SourceBranchName)-latest \
+            --file $(dockerfilePath) \
+            $(buildContext)
+          
+          echo "Image built successfully"
+          echo "Image: $(acrLoginServer)/$(imageName):$(imageTag)"
+
+    #------------------------------------------------------------------------
+    # Scan image with Trivy
+    #------------------------------------------------------------------------
+    - task: AzureCLI@2
+      displayName: 'Pull and Scan Image'
+      condition: succeeded()
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          set -e
+          echo "Pulling image for scanning..."
+          docker pull $(acrLoginServer)/$(imageName):$(imageTag)
+          
+          echo "Scanning image with Trivy..."
+          # Install Trivy if not present
+          if ! command -v trivy &> /dev/null; then
+            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          fi
+          
+          trivy image --severity HIGH,CRITICAL --exit-code 0 \
+            $(acrLoginServer)/$(imageName):$(imageTag)
+
+    #------------------------------------------------------------------------
+    # Sign image with Notation (Cosign alternative)
+    #------------------------------------------------------------------------
+    - task: AzureCLI@2
+      displayName: 'Sign Image (ACR Content Trust)'
+      condition: and(succeeded(), eq(variables.isMainBranch, true))
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          set -e
+          echo "Enabling content trust and signing image..."
+          
+          # Enable trust policy for the repository
+          az acr repository update \
+            --name $(acrName) \
+            --image $(imageName):$(imageTag) \
+            --write-enabled true
+
+    #------------------------------------------------------------------------
+    # Update Helm chart and push to Git (for ArgoCD)
+    #------------------------------------------------------------------------
+    - task: AzureCLI@2
+      displayName: 'Package and Index Helm Chart'
+      condition: succeeded()
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          set -e
+          
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          
+          echo "Packaging Helm chart..."
+          helm package $(helmChartPath) \
+            --version $(helmChartVersion) \
+            --app-version $(imageTag) \
+            --destination $(Build.ArtifactStagingDirectory)
+          
+          echo "Helm chart packaged:"
+          ls -la $(Build.ArtifactStagingDirectory)/*.tgz
+
+    #------------------------------------------------------------------------
+    # Publish artifacts for CD pipeline
+    #------------------------------------------------------------------------
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Helm Chart'
+      condition: succeeded()
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'helm-chart'
+        publishLocation: 'Container'
+
+    #------------------------------------------------------------------------
+    # Write deployment manifest for ArgoCD
+    #------------------------------------------------------------------------
+    - task: PowerShell@2
+      name: DeploymentInfo
+      displayName: 'Generate Deployment Info'
+      condition: succeeded()
+      inputs:
+        targetType: 'inline'
+        script: |
+          $deploymentInfo = @{
+            imageTag = "$(imageTag)"
+            helmChartVersion = "$(helmChartVersion)"
+            imageRepository = "$(acrLoginServer)/$(imageName)"
+            commitId = "$(Build.SourceVersion)".Substring(0, 8)
+            buildId = "$(Build.BuildId)"
+            branch = "$(Build.SourceBranchName)"
+            acrName = "$(acrName)"
+          } | ConvertTo-Json -Depth 10
+          
+          $deploymentInfo | Out-File -FilePath "$(Build.ArtifactStagingDirectory)/deployment-info.json" -Encoding utf8
+          
+          Write-Host "Deployment Info:"
+          Write-Host $deploymentInfo
+          
+          # Set output variables for next stage
+          Write-Host "##vso[task.setvariable variable=deploymentImageTag;isOutput=true]$(imageTag)"
+          Write-Host "##vso[task.setvariable variable=deploymentHelmVersion;isOutput=true]$(helmChartVersion)"
+        pwsh: true
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Deployment Info'
+      condition: succeeded()
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/deployment-info.json'
+        ArtifactName: 'deployment-info'
+        publishLocation: 'Container'

@@ -1,0 +1,418 @@
+#==============================================================================
+# CD Pipeline: Deploy via ArgoCD (GitOps)
+#==============================================================================
+# This pipeline updates the Git repository with new Helm chart values,
+# which triggers ArgoCD to deploy the application using blue-green strategy.
+#==============================================================================
+
+trigger: none  # Manually triggered or by CI pipeline completion
+
+pr: none
+
+resources:
+  pipelines:
+    - pipeline: ciPipeline
+      source: 'CI-Build-and-Push'
+      trigger:
+        branches:
+          include:
+            - main
+            - develop
+
+  repositories:
+    - repository: gitOpsRepo
+      type: git
+      name: 'MyProject/GitOps-Repository'  # Repository containing ArgoCD apps
+      ref: 'refs/heads/main'
+
+variables:
+  # Azure service connection
+  azureServiceConnection: 'private-aks-sc'
+  
+  # GitOps repository settings
+  gitOpsRepoUrl: 'https://dev.azure.com/MyOrg/MyProject/_git/GitOps-Repository'
+  gitOpsBranch: 'main'
+  
+  # AKS and ACR settings
+  aksName: $(AKS_NAME)
+  acrName: $(ACR_NAME)
+  acrLoginServer: $(ACR_LOGIN_SERVER)
+  
+  # Key Vault settings
+  keyVaultName: $(KEYVAULT_NAME)
+  tenantId: $(AZURE_TENANT_ID)
+  
+  # ArgoCD settings
+  argoCDNamespace: 'argocd'
+  
+  # Deployment configuration
+  targetNamespace: 'production'
+  helmReleaseName: 'sample-app'
+
+stages:
+#============================================================================
+# Stage 1: Prepare Deployment
+#============================================================================
+- stage: PrepareDeployment
+  displayName: 'Prepare Deployment'
+  jobs:
+  - job: PrepareJob
+    displayName: 'Prepare Deployment Parameters'
+    pool:
+      vmImage: 'ubuntu-latest'
+    
+    steps:
+    - checkout: gitOpsRepo
+      displayName: 'Checkout GitOps Repository'
+
+    - checkout: self
+      displayName: 'Checkout Source Repository'
+
+    #------------------------------------------------------------------------
+    # Determine active color (blue or green)
+    #------------------------------------------------------------------------
+    - task: AzureCLI@2
+      name: DetermineActiveColor
+      displayName: 'Determine Active Color'
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          set -e
+          
+          echo "Connecting to AKS cluster..."
+          az aks get-credentials \
+            --name $(aksName) \
+            --resource-group $(AKS_RESOURCE_GROUP) \
+            --overwrite-existing
+          
+          echo "Checking current active color..."
+          
+          # Get the current service selector
+          CURRENT_SELECTOR=$(kubectl get service $(helmReleaseName) -n $(targetNamespace) -o jsonpath='{.spec.selector.color}' 2>/dev/null || echo "blue")
+          
+          if [ "$CURRENT_SELECTOR" = "blue" ]; then
+            ACTIVE_COLOR="blue"
+            NEW_COLOR="green"
+          else
+            ACTIVE_COLOR="green"
+            NEW_COLOR="blue"
+          fi
+          
+          echo "Current active color: $ACTIVE_COLOR"
+          echo "New deployment color: $NEW_COLOR"
+          
+          echo "##vso[task.setvariable variable=activeColor;isOutput=true]$ACTIVE_COLOR"
+          echo "##vso[task.setvariable variable=newColor;isOutput=true]$NEW_COLOR"
+          
+          echo "##vso[task.setvariable variable=activeColor]$ACTIVE_COLOR"
+          echo "##vso[task.setvariable variable=newColor]$NEW_COLOR"
+
+    #------------------------------------------------------------------------
+    # Download CI artifacts
+    #------------------------------------------------------------------------
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Download Deployment Info'
+      inputs:
+        buildType: 'specific'
+        project: '$(System.TeamProject)'
+        pipeline: '$(resources.pipeline.ciPipeline.pipelineID)'
+        runVersion: 'specific'
+        runId: '$(resources.pipeline.ciPipeline.runID)'
+        artifact: 'deployment-info'
+        path: '$(Pipeline.Workspace)/deployment-info'
+
+    #------------------------------------------------------------------------
+    # Parse deployment info
+    #------------------------------------------------------------------------
+    - task: PowerShell@2
+      name: ParseDeploymentInfo
+      displayName: 'Parse Deployment Info'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $deploymentInfoPath = "$(Pipeline.Workspace)/deployment-info/deployment-info.json"
+          $deploymentInfo = Get-Content $deploymentInfoPath | ConvertFrom-Json -Depth 10
+          
+          Write-Host "Image Tag: $($deploymentInfo.imageTag)"
+          Write-Host "Helm Chart Version: $($deploymentInfo.helmChartVersion)"
+          Write-Host "Image Repository: $($deploymentInfo.imageRepository)"
+          Write-Host "Commit ID: $($deploymentInfo.commitId)"
+          
+          # Set output variables
+          Write-Host "##vso[task.setvariable variable=imageTag;isOutput=true]$($deploymentInfo.imageTag)"
+          Write-Host "##vso[task.setvariable variable=helmChartVersion;isOutput=true]$($deploymentInfo.helmChartVersion)"
+          Write-Host "##vso[task.setvariable variable=imageRepository;isOutput=true]$($deploymentInfo.imageRepository)"
+          Write-Host "##vso[task.setvariable variable=commitId;isOutput=true]$($deploymentInfo.commitId)"
+        pwsh: true
+
+#============================================================================
+# Stage 2: Update GitOps Repository (Triggers ArgoCD)
+#============================================================================
+- stage: UpdateGitOps
+  displayName: 'Update GitOps Repository'
+  dependsOn: PrepareDeployment
+  jobs:
+  - job: UpdateGitOpsJob
+    displayName: 'Update GitOps for ArgoCD'
+    pool:
+      vmImage: 'ubuntu-latest'
+    variables:
+      activeColor: $[ stageDependencies.PrepareDeployment.PrepareJob.outputs['DetermineActiveColor.activeColor'] ]
+      newColor: $[ stageDependencies.PrepareDeployment.PrepareJob.outputs['DetermineActiveColor.newColor'] ]
+      imageTag: $[ stageDependencies.PrepareDeployment.PrepareJob.outputs['ParseDeploymentInfo.imageTag'] ]
+      helmChartVersion: $[ stageDependencies.PrepareDeployment.PrepareJob.outputs['ParseDeploymentInfo.helmChartVersion'] ]
+      imageRepository: $[ stageDependencies.PrepareDeployment.PrepareJob.outputs['ParseDeploymentInfo.imageRepository'] ]
+
+    steps:
+    - checkout: gitOpsRepo
+      persistCredentials: true
+      displayName: 'Checkout GitOps Repository'
+
+    #------------------------------------------------------------------------
+    # Configure Git
+    #------------------------------------------------------------------------
+    - task: Bash@3
+      displayName: 'Configure Git'
+      inputs:
+        targetType: 'inline'
+        script: |
+          git config --global user.email "azure-devops@company.com"
+          git config --global user.name "Azure DevOps"
+          git config --global credential.helper store
+
+    #------------------------------------------------------------------------
+    # Update Helm values file for new deployment color
+    #------------------------------------------------------------------------
+    - task: PowerShell@2
+      displayName: 'Update Helm Values'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $valuesPath = "apps/$(targetNamespace)/$(helmReleaseName)/values.yaml"
+          $newColor = "$(newColor)"
+          $activeColor = "$(activeColor)"
+          $imageTag = "$(imageTag)"
+          $imageRepository = "$(imageRepository)"
+          $helmChartVersion = "$(helmChartVersion)"
+          
+          Write-Host "Updating Helm values..."
+          Write-Host "Active Color: $activeColor"
+          Write-Host "New Color: $newColor"
+          Write-Host "Image Tag: $imageTag"
+          Write-Host "Image Repository: $imageRepository"
+          
+          # Read existing values
+          $values = Get-Content $valuesPath -Raw | ConvertFrom-Yaml
+          
+          # Update image repository and tag
+          $values.image.repository = $imageRepository
+          $values.image.tag = $imageTag
+          
+          # Update deployment configuration
+          $values.deployment.activeColor = $activeColor
+          
+          # Enable new color deployment with new image
+          if ($newColor -eq "blue") {
+            $values.deployment.blue.enabled = $true
+            $values.deployment.blue.imageTag = $imageTag
+            $values.deployment.green.enabled = $false
+          } else {
+            $values.deployment.green.enabled = $true
+            $values.deployment.green.imageTag = $imageTag
+            $values.deployment.blue.enabled = $false
+          }
+          
+          # Update Key Vault settings
+          $values.secrets.keyvault.name = "$(keyVaultName)"
+          $values.secrets.keyvault.tenantId = "$(tenantId)"
+          
+          # Update workload identity
+          $workloadIdentityClientId = "$(WORKLOAD_IDENTITY_CLIENT_ID)"
+          $values.workloadIdentity.serviceAccount.annotations.'azure.workload.identity/client-id' = $workloadIdentityClientId
+          
+          # Write updated values back
+          $values | ConvertTo-Yaml | Set-Content $valuesPath
+          
+          Write-Host "Values file updated successfully"
+          Get-Content $valuesPath | Write-Host
+        pwsh: true
+
+    #------------------------------------------------------------------------
+    # Update ArgoCD Application manifest
+    #------------------------------------------------------------------------
+    - task: PowerShell@2
+      displayName: 'Update ArgoCD Application'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $appPath = "apps/$(targetNamespace)/$(helmReleaseName)/application.yaml"
+          $helmChartVersion = "$(helmChartVersion)"
+          
+          # Update the target revision (Helm chart version)
+          $appManifest = Get-Content $appPath -Raw
+          $appManifest = $appManifest -replace 'targetRevision: .*', "targetRevision: $helmChartVersion"
+          
+          # Add deployment annotation
+          $timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+          $appManifest = $appManifest -replace 'deployedAt: .*', "deployedAt: $timestamp"
+          
+          Set-Content $appPath $appManifest
+          
+          Write-Host "ArgoCD Application manifest updated"
+        pwsh: true
+
+    #------------------------------------------------------------------------
+    # Commit and push changes
+    #------------------------------------------------------------------------
+    - task: Bash@3
+      displayName: 'Commit and Push Changes'
+      inputs:
+        targetType: 'inline'
+        script: |
+          set -e
+          
+          cd $(Build.SourcesDirectory)
+          
+          # Create a new branch for the deployment
+          BRANCH_NAME="deploy/$(helmReleaseName)-$(imageTag)-$(Build.BuildId)"
+          git checkout -b $BRANCH_NAME
+          
+          # Stage changes
+          git add apps/$(targetNamespace)/$(helmReleaseName)/
+          
+          # Commit with deployment info
+          git commit -m "Deploy $(helmReleaseName) $(imageTag) to $(targetNamespace)
+
+          - Image: $(imageRepository):$(imageTag)
+          - Helm Chart Version: $(helmChartVersion)
+          - Active Color: $(activeColor)
+          - New Color: $(newColor)
+          - Triggered by: $(Build.DefinitionName) - Build $(Build.BuildId)"
+          
+          # Push to remote
+          git push origin $BRANCH_NAME
+          
+          echo "Branch pushed: $BRANCH_NAME"
+          
+          # Create PR to main (optional - can auto-merge for dev)
+          # For production, manual approval via PR review
+
+    #------------------------------------------------------------------------
+    # Create Pull Request (using Azure DevOps REST API)
+    #------------------------------------------------------------------------
+    - task: PowerShell@2
+      displayName: 'Create Pull Request'
+      condition: and(succeeded(), eq(variables['Build.SourceBranchName'], 'main'))
+      inputs:
+        targetType: 'inline'
+        script: |
+          $organization = "$(System.TeamFoundationCollectionUri)"
+          $project = "$(System.TeamProject)"
+          $repositoryId = "GitOps-Repository"
+          $sourceBranch = "deploy/$(helmReleaseName)-$(imageTag)-$(Build.BuildId)"
+          $targetBranch = "main"
+          $pat = "$(System.AccessToken)"
+          
+          $uri = "$organization$project/_apis/git/repositories/$repositoryId/pullrequests?api-version=6.0"
+          
+          $body = @{
+            sourceRefName = "refs/heads/$sourceBranch"
+            targetRefName = "refs/heads/$targetBranch"
+            title = "Deploy $(helmReleaseName) $(imageTag)"
+            description = @"
+          ## Deployment Request
+          
+          **Application:** $(helmReleaseName)
+          **Version:** $(imageTag)
+          **Environment:** $(targetNamespace)
+          **Deployment Strategy:** Blue-Green
+          
+          ### Changes
+          - New image: $(imageRepository):$(imageTag)
+          - Helm chart version: $(helmChartVersion)
+          - Active color: $(activeColor)
+          - New deployment color: $(newColor)
+          
+          ### Pre-deployment Checklist
+          - [ ] Tests passed
+          - [ ] Security scan passed
+          - [ ] Approval obtained
+          
+          ### Post-deployment
+          ArgoCD will automatically sync once this PR is merged.
+          Use the ArgoCD UI to monitor deployment and switch traffic.
+          "@
+          } | ConvertTo-Json -Depth 10
+          
+          $headers = @{
+            "Authorization" = "Bearer $pat"
+            "Content-Type" = "application/json"
+          }
+          
+          Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -Body $body
+          
+          Write-Host "Pull request created successfully"
+        pwsh: true
+
+#============================================================================
+# Stage 3: Post-Deployment Verification (Optional - Smoke Tests)
+#============================================================================
+- stage: SmokeTests
+  displayName: 'Smoke Tests'
+  dependsOn: UpdateGitOps
+  condition: succeeded()
+  jobs:
+  - job: SmokeTestJob
+    displayName: 'Run Smoke Tests'
+    pool:
+      vmImage: 'ubuntu-latest'
+    
+    steps:
+    - task: AzureCLI@2
+      displayName: 'Wait for ArgoCD Sync'
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          set -e
+          
+          # Get AKS credentials
+          az aks get-credentials \
+            --name $(aksName) \
+            --resource-group $(AKS_RESOURCE_GROUP) \
+            --overwrite-existing
+          
+          # Port-forward to ArgoCD (or use internal service if available)
+          # kubectl port-forward svc/argocd-server -n $(argoCDNamespace) 8080:443 &
+          
+          # Wait for ArgoCD to sync (poll for status)
+          echo "Waiting for ArgoCD sync..."
+          # This would integrate with ArgoCD API or kubectl wait
+          
+          # Wait for deployment to be ready
+          kubectl wait deployment/$(helmReleaseName)-$(newColor) \
+            -n $(targetNamespace) \
+            --for condition=Available=True \
+            --timeout=300s
+          
+          echo "Deployment is ready"
+
+    - task: Bash@3
+      displayName: 'Run Smoke Tests'
+      inputs:
+        targetType: 'inline'
+        script: |
+          # Run smoke tests against the new deployment
+          # Port-forward to the service and run tests
+          
+          # kubectl port-forward svc/$(helmReleaseName) 8080:80 -n $(targetNamespace) &
+          # sleep 5
+          
+          # Run health check
+          # curl -f http://localhost:8080/health/ready || exit 1
+          # curl -f http://localhost:8080/health/live || exit 1
+          
+          echo "Smoke tests would run here"

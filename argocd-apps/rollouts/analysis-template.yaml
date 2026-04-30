@@ -1,0 +1,97 @@
+#==============================================================================
+# Argo Rollouts Analysis Template
+#==============================================================================
+# This analysis template defines the success criteria for blue-green deployments.
+# It can be used with Argo Rollouts for automated traffic shifting.
+#==============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+  namespace: production
+spec:
+  args:
+    - name: service-name
+    - name: namespace
+  metrics:
+    - name: success-rate
+      interval: 1m
+      count: 5
+      failureLimit: 1
+      successCondition: result[0] >= 0.95
+      provider:
+        prometheus:
+          address: http://prometheus-server.monitoring.svc.cluster.local
+          query: |
+            sum(rate(http_requests_total{service="{{args.service-name}}",namespace="{{args.namespace}}",status=~"2.."}[1m]))
+            /
+            sum(rate(http_requests_total{service="{{args.service-name}}",namespace="{{args.namespace}}"}[1m]))
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: error-rate
+  namespace: production
+spec:
+  args:
+    - name: service-name
+    - name: namespace
+  metrics:
+    - name: error-rate
+      interval: 1m
+      count: 5
+      failureLimit: 1
+      successCondition: result[0] <= 0.05
+      provider:
+        prometheus:
+          address: http://prometheus-server.monitoring.svc.cluster.local
+          query: |
+            sum(rate(http_requests_total{service="{{args.service-name}}",namespace="{{args.namespace}}",status=~"5.."}[1m]))
+            /
+            sum(rate(http_requests_total{service="{{args.service-name}}",namespace="{{args.namespace}}"}[1m]))
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: latency
+  namespace: production
+spec:
+  args:
+    - name: service-name
+    - name: namespace
+  metrics:
+    - name: latency-p95
+      interval: 1m
+      count: 5
+      failureLimit: 1
+      successCondition: result[0] <= 500
+      provider:
+        prometheus:
+          address: http://prometheus-server.monitoring.svc.cluster.local
+          query: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket{service="{{args.service-name}}",namespace="{{args.namespace}}"}[1m])) by (le)
+            ) * 1000
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: web
+  namespace: production
+spec:
+  args:
+    - name: url
+  metrics:
+    - name: web-health
+      interval: 30s
+      count: 10
+      failureLimit: 3
+      successCondition: result[0] == 200
+      provider:
+        web:
+          url: "{{args.url}}/health/ready"
+          timeoutSeconds: 10
