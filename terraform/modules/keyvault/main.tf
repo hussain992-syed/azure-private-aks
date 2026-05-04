@@ -82,10 +82,17 @@ resource "azurerm_user_assigned_identity" "workload" {
 #------------------------------------------------------------------------------
 # Key Vault Secrets (example secrets)
 #------------------------------------------------------------------------------
-resource "azurerm_key_vault_secret" "secrets" {
-  for_each     = var.secrets
-  name         = each.key
-  value        = each.value
+# Note: Secrets should be managed via Azure CLI or other secure methods
+# Terraform can manage secret metadata but not sensitive values directly
+# Use the following command to add secrets:
+# az keyvault secret set --vault-name <kv-name> --name <secret-name> --value <secret-value>
+
+# This resource creates placeholders for secret metadata if needed
+# For actual secret values, use Azure CLI or Key Vault UI
+resource "azurerm_key_vault_secret" "placeholder" {
+  count        = length(keys(var.secrets))
+  name         = keys(var.secrets)[count.index]
+  value        = "placeholder-update-via-azure-cli"
   key_vault_id = azurerm_key_vault.main.id
 
   # Content type for metadata
@@ -96,6 +103,10 @@ resource "azurerm_key_vault_secret" "secrets" {
     managed_by = "terraform"
     purpose    = "application-secret"
   })
+
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
 
 #------------------------------------------------------------------------------

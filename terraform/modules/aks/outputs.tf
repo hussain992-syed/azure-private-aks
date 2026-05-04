@@ -20,7 +20,7 @@ output "aks_cluster_identity_principal_id" {
 
 output "aks_oidc_issuer_url" {
   description = "OIDC issuer URL for workload identity"
-  value       = azurerm_kubernetes_cluster.main.oidc_issuer_url
+  value       = try(azurerm_kubernetes_cluster.main.oidc_issuer_url, null)
 }
 
 output "aks_host" {

@@ -38,8 +38,10 @@ resource "azurerm_subnet" "aks" {
   address_prefixes     = [var.aks_subnet_prefix]
 
   # Required for AKS
-  private_endpoint_network_policies_enabled = false
-  service_endpoints                           = ["Microsoft.KeyVault"]
+  private_endpoint_network_policies {
+    enabled = false
+  }
+  service_endpoints = ["Microsoft.KeyVault"]
 }
 
 resource "azurerm_subnet" "acr" {
@@ -48,7 +50,9 @@ resource "azurerm_subnet" "acr" {
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.acr_subnet_prefix]
 
-  private_endpoint_network_policies_enabled = true
+  private_endpoint_network_policies {
+    enabled = true
+  }
 }
 
 resource "azurerm_subnet" "keyvault" {
@@ -57,7 +61,9 @@ resource "azurerm_subnet" "keyvault" {
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.keyvault_subnet_prefix]
 
-  private_endpoint_network_policies_enabled = true
+  private_endpoint_network_policies {
+    enabled = true
+  }
 }
 
 resource "azurerm_subnet" "jumpbox" {
