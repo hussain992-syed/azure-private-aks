@@ -34,8 +34,8 @@ resource "azurerm_key_vault" "main" {
 
   # Network ACLs - deny all public access
   network_acls {
-    default_action = "Deny"
-    bypass         = "None"
+    default_action = "Allow"
+    bypass         = "Azureservices"
     # No IP rules - access only via private endpoint
   }
 
@@ -89,7 +89,7 @@ resource "azurerm_user_assigned_identity" "workload" {
 
 # This resource creates placeholders for secret metadata if needed
 # For actual secret values, use Azure CLI or Key Vault UI
-resource "azurerm_key_vault_secret" "placeholder" {
+# resource "azurerm_key_vault_secret" "placeholder" {
   count        = length(keys(var.secrets))
   name         = keys(var.secrets)[count.index]
   value        = "placeholder-update-via-azure-cli"
@@ -114,7 +114,7 @@ resource "azurerm_key_vault_secret" "placeholder" {
 #------------------------------------------------------------------------------
 
 # Azure DevOps Service Principal - Secret Officer (to manage secrets)
-resource "azurerm_role_assignment" "devops_secret_officer" {
+# resource "azurerm_role_assignment" "devops_secret_officer" {
   count                = var.devops_service_principal_id != "" ? 1 : 0
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets Officer"
@@ -123,7 +123,7 @@ resource "azurerm_role_assignment" "devops_secret_officer" {
 }
 
 # AKS Cluster Identity - Certificate User (for TLS certs if needed)
-resource "azurerm_role_assignment" "aks_certificate_user" {
+# resource "azurerm_role_assignment" "aks_certificate_user" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Certificate User"
   principal_id         = var.aks_identity_principal_id
@@ -131,7 +131,7 @@ resource "azurerm_role_assignment" "aks_certificate_user" {
 }
 
 # Workload Identity Role Assignments
-resource "azurerm_role_assignment" "workload_secret_user" {
+# resource "azurerm_role_assignment" "workload_secret_user" {
   for_each             = var.workload_identities
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets User"  # Read-only access to secrets
