@@ -54,18 +54,8 @@ locals {
   }
 
   # Workload identities configuration
-  workload_identities = {
-    "sample-app" = {
-      namespace            = "production"
-      service_account_name = "sample-app-sa"
-      aks_oidc_issuer_url  = module.aks.oidc_issuer_url
-    }
-    "backend-api" = {
-      namespace            = "production"
-      service_account_name = "backend-api-sa"
-      aks_oidc_issuer_url  = module.aks.oidc_issuer_url
-    }
-  }
+  # Initially empty, will be configured after AKS is created
+  workload_identities = {}
 
   # Example secrets (in production, use external secret management)
   secrets = {
