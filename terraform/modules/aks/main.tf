@@ -170,7 +170,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "workload" {
   os_disk_size_gb       = 128
   os_disk_type          = "Managed"
   os_type               = "Linux"
-  zones                 = var.availability_zones
+  zones                 = null
   enable_auto_scaling   = var.enable_auto_scaling
   min_count             = var.enable_auto_scaling ? var.workload_min_count : null
   max_count             = var.enable_auto_scaling ? var.workload_max_count : null

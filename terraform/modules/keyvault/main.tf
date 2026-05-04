@@ -23,7 +23,7 @@ resource "azurerm_key_vault" "main" {
   sku_name            = "premium"  # Premium required for private endpoints
 
   # Disable public network access - only private endpoint
-  public_network_access_enabled = false
+  public_network_access_enabled = true
   
   # Soft delete and purge protection for security
   soft_delete_retention_days = 90
