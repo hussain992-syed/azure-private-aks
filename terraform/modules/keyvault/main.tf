@@ -157,7 +157,6 @@ resource "azurerm_federated_identity_credential" "workload" {
 # Diagnostics Settings
 #------------------------------------------------------------------------------
 resource "azurerm_monitor_diagnostic_setting" "keyvault" {
-  count                      = var.log_analytics_workspace_id != "" ? 1 : 0
   name                       = "keyvault-diagnostics"
   target_resource_id         = azurerm_key_vault.main.id
   log_analytics_workspace_id = var.log_analytics_workspace_id

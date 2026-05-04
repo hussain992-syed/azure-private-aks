@@ -33,8 +33,8 @@ resource "azurerm_kubernetes_cluster" "main" {
   private_cluster_enabled             = true
   private_cluster_public_fqdn_enabled = false
   
-  # Private DNS zone - either "none" (bring your own) or "system"
-  private_dns_zone_id = var.private_dns_zone_id != "" ? var.private_dns_zone_id : "none"
+  # Private DNS zone - either "None" (bring your own) or "System"
+  private_dns_zone_id = var.private_dns_zone_id != "" ? var.private_dns_zone_id : "None"
 
   # Identity configuration
   identity {
