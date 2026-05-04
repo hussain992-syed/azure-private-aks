@@ -99,6 +99,7 @@ resource "azurerm_role_assignment" "devops_acr_push" {
 # Diagnostics Settings
 #------------------------------------------------------------------------------
 resource "azurerm_monitor_diagnostic_setting" "acr" {
+  count                      = 1
   name                       = "acr-diagnostics"
   target_resource_id         = azurerm_container_registry.main.id
   log_analytics_workspace_id = var.log_analytics_workspace_id
