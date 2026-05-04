@@ -35,7 +35,7 @@ resource "azurerm_key_vault" "main" {
   # Network ACLs - deny all public access
   network_acls {
     default_action = "Allow"
-    bypass         = "Azureservices"
+    bypass         = "AzureServices"
     # No IP rules - access only via private endpoint
   }
 
