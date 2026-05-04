@@ -166,18 +166,6 @@ variable "argocd_node_size" {
   default     = "Standard_D4s_v3"
 }
 
-variable "create_argocd_namespace" {
-  description = "Create ArgoCD namespace"
-  type        = bool
-  default     = true
-}
-
-variable "application_namespaces" {
-  description = "List of namespaces to create for applications"
-  type        = set(string)
-  default     = ["production", "staging"]
-}
-
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)

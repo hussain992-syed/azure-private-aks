@@ -146,11 +146,7 @@ module "aks" {
   workload_max_count        = 5
 
   # ArgoCD configuration
-  create_argocd_namespace   = true
   create_argocd_node_pool   = false
-
-  # Application namespaces
-  application_namespaces = ["production", "staging", "argocd"]
 
   tags = local.tags
 }

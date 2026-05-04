@@ -207,34 +207,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "argocd" {
   tags = var.tags
 }
 
-#------------------------------------------------------------------------------
-# Kubernetes Namespace for ArgoCD
-#------------------------------------------------------------------------------
-resource "kubernetes_namespace" "argocd" {
-  count = var.create_argocd_namespace ? 1 : 0
-  metadata {
-    name = "argocd"
-    labels = {
-      environment = var.environment
-      managed_by  = "terraform"
-    }
-  }
-
-  depends_on = [azurerm_kubernetes_cluster.main]
-}
-
-#------------------------------------------------------------------------------
-# Kubernetes Namespace for Applications
-#------------------------------------------------------------------------------
-resource "kubernetes_namespace" "applications" {
-  for_each = var.application_namespaces
-  metadata {
-    name = each.value
-    labels = {
-      environment = var.environment
-      managed_by  = "terraform"
-    }
-  }
-
-  depends_on = [azurerm_kubernetes_cluster.main]
-}
+# Note: Kubernetes namespaces are created via kubectl after cluster deployment
+# kubectl create namespace argocd
+# kubectl create namespace production
+# kubectl create namespace staging
