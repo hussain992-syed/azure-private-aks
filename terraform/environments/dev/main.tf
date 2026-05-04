@@ -125,7 +125,7 @@ module "aks" {
   
   # Default node pool (system pool) - reduced for vCPU quota
   default_node_count = 1
-  default_node_size  = "Standard_DC4s_v3"
+  default_node_size  = "Standard_DC2s_v3"
   
   # Node pool configuration
   enable_auto_scaling = true
@@ -141,7 +141,7 @@ module "aks" {
   # Workload node pool - disabled for vCPU quota
   create_workload_node_pool = false
   workload_node_count       = 0
-  workload_node_size        = "Standard_DC4s_v3"
+  workload_node_size        = "Standard_DC2s_v3"
   workload_min_count        = 2
   workload_max_count        = 5
 

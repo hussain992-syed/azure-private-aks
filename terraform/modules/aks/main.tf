@@ -47,8 +47,8 @@ resource "azurerm_kubernetes_cluster" "main" {
   # Default node pool
   default_node_pool {
     name                = "default"
-    node_count          = var.default_node_count
-    vm_size             = var.default_node_size
+    node_count          = 1
+    vm_size             = "Standard_DC2s_v3"
     vnet_subnet_id      = var.subnet_id
     os_disk_size_gb     = 128
     os_disk_type        = "Managed"
