@@ -123,14 +123,14 @@ module "aks" {
   # Private cluster settings
   private_dns_zone_id = "None"  # "None" or custom DNS zone ID
   
-  # Default node pool (system pool)
-  default_node_count = 2
+  # Default node pool (system pool) - reduced for vCPU quota
+  default_node_count = 1
   default_node_size  = "Standard_DC4s_v3"
   
   # Node pool configuration
   enable_auto_scaling = true
-  min_node_count      = 2
-  max_node_count      = 5
+  min_node_count      = 1
+  max_node_count      = 2
   
   # Azure AD RBAC
   admin_group_object_ids = var.admin_group_object_ids
@@ -138,10 +138,10 @@ module "aks" {
   # Logging
   log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
 
-  # Workload node pool
-  create_workload_node_pool = true
-  workload_node_count       = 2
-  workload_node_size        = "Standard_D4s_v3"
+  # Workload node pool - disabled for vCPU quota
+  create_workload_node_pool = false
+  workload_node_count       = 0
+  workload_node_size        = "Standard_DC4s_v3"
   workload_min_count        = 2
   workload_max_count        = 5
 
