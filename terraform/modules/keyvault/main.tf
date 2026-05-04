@@ -89,55 +89,16 @@ resource "azurerm_user_assigned_identity" "workload" {
 
 # This resource creates placeholders for secret metadata if needed
 # For actual secret values, use Azure CLI or Key Vault UI
-# resource "azurerm_key_vault_secret" "placeholder" {
-  count        = length(keys(var.secrets))
-  name         = keys(var.secrets)[count.index]
-  value        = "placeholder-update-via-azure-cli"
-  key_vault_id = azurerm_key_vault.main.id
-
-  # Content type for metadata
-  content_type = "text/plain"
-
-  # Tags for organization
-  tags = merge(var.tags, {
-    managed_by = "terraform"
-    purpose    = "application-secret"
-  })
-
-  lifecycle {
-    ignore_changes = [value]
-  }
-}
+# Note: Secrets are created separately via Azure CLI to avoid storing sensitive values in Terraform state
 
 #------------------------------------------------------------------------------
 # RBAC Assignments for Key Vault
 #------------------------------------------------------------------------------
 
-# Azure DevOps Service Principal - Secret Officer (to manage secrets)
-# resource "azurerm_role_assignment" "devops_secret_officer" {
-  count                = var.devops_service_principal_id != "" ? 1 : 0
-  scope                = azurerm_key_vault.main.id
-  role_definition_name = "Key Vault Secrets Officer"
-  principal_id         = var.devops_service_principal_id
-  description          = "Allow Azure DevOps to manage secrets"
-}
-
-# AKS Cluster Identity - Certificate User (for TLS certs if needed)
-# resource "azurerm_role_assignment" "aks_certificate_user" {
-  scope                = azurerm_key_vault.main.id
-  role_definition_name = "Key Vault Certificate User"
-  principal_id         = var.aks_identity_principal_id
-  description          = "Allow AKS cluster identity to use certificates"
-}
-
-# Workload Identity Role Assignments
-# resource "azurerm_role_assignment" "workload_secret_user" {
-  for_each             = var.workload_identities
-  scope                = azurerm_key_vault.main.id
-  role_definition_name = "Key Vault Secrets User"  # Read-only access to secrets
-  principal_id         = azurerm_user_assigned_identity.workload[each.key].principal_id
-  description            = "Allow workload ${each.key} to read secrets"
-}
+# Note: Role assignments are managed separately to avoid circular dependencies
+# - Azure DevOps Service Principal needs Key Vault Secrets Officer role
+# - AKS Cluster Identity needs Key Vault Certificate User role
+# - Workload Identities need Key Vault Secrets User role (read-only)
 
 #------------------------------------------------------------------------------
 # Federated Identity Credentials for Workload Identity
