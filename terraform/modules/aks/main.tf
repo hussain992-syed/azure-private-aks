@@ -81,8 +81,8 @@ resource "azurerm_kubernetes_cluster" "main" {
     dns_service_ip     = var.dns_service_ip
     pod_cidr           = var.pod_cidr
 
-    # Outbound type - managed NAT gateway for private clusters
-    outbound_type = "managedNATGateway"
+    # Outbound type - load balancer for custom VNet configuration
+    outbound_type = "loadBalancer"
   }
 
   # RBAC with Azure AD
