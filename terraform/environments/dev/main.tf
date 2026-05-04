@@ -118,7 +118,7 @@ module "aks" {
   subnet_id           = module.networking.aks_subnet_id
   vnet_id             = module.networking.vnet_id
 
-  kubernetes_version = "1.29"
+  kubernetes_version = "1.30.3"
   
   # Private cluster settings
   private_dns_zone_id = "None"  # "None" or custom DNS zone ID
