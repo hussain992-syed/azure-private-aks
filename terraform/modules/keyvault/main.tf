@@ -124,7 +124,6 @@ resource "azurerm_role_assignment" "devops_secret_officer" {
 
 # AKS Cluster Identity - Certificate User (for TLS certs if needed)
 resource "azurerm_role_assignment" "aks_certificate_user" {
-  count                = var.aks_identity_principal_id != "" ? 1 : 0
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Certificate User"
   principal_id         = var.aks_identity_principal_id
