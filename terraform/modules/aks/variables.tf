@@ -133,7 +133,7 @@ variable "workload_node_count" {
 variable "workload_node_size" {
   description = "VM size for workload pool"
   type        = string
-  default     = "Standard_D4s_v3"
+  default     = "Standard_DC4s_v3"
 }
 
 variable "workload_min_count" {

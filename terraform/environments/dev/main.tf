@@ -125,7 +125,7 @@ module "aks" {
   
   # Default node pool (system pool)
   default_node_count = 2
-  default_node_size  = "Standard_D4s_v3"
+  default_node_size  = "Standard_DC4s_v3"
   
   # Node pool configuration
   enable_auto_scaling = true
