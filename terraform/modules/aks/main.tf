@@ -25,7 +25,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   name                = "${var.prefix}-aks-${var.environment}"
   resource_group_name = var.resource_group_name
   location            = var.location
-  kubernetes_version  = var.kubernetes_version
+ # kubernetes_version  = var.kubernetes_version
   dns_prefix          = "${var.prefix}-aks-${var.environment}"
   node_resource_group = "${var.prefix}-aks-nodes-${var.environment}"
 
