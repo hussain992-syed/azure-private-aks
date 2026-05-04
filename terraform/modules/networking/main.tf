@@ -38,10 +38,8 @@ resource "azurerm_subnet" "aks" {
   address_prefixes     = [var.aks_subnet_prefix]
 
   # Required for AKS
-  private_endpoint_network_policies {
-    enabled = false
-  }
-  service_endpoints = ["Microsoft.KeyVault"]
+  private_endpoint_network_policies_enabled = false
+  service_endpoints                           = ["Microsoft.KeyVault"]
 }
 
 resource "azurerm_subnet" "acr" {
@@ -50,9 +48,7 @@ resource "azurerm_subnet" "acr" {
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.acr_subnet_prefix]
 
-  private_endpoint_network_policies {
-    enabled = true
-  }
+  private_endpoint_network_policies_enabled = true
 }
 
 resource "azurerm_subnet" "keyvault" {
@@ -61,9 +57,7 @@ resource "azurerm_subnet" "keyvault" {
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.keyvault_subnet_prefix]
 
-  private_endpoint_network_policies {
-    enabled = true
-  }
+  private_endpoint_network_policies_enabled = true
 }
 
 resource "azurerm_subnet" "jumpbox" {
@@ -200,7 +194,7 @@ resource "azurerm_route_table" "main" {
   name                          = "${var.prefix}-rt-${var.environment}"
   location                      = azurerm_resource_group.main.location
   resource_group_name           = azurerm_resource_group.main.name
-  disable_bgp_route_propagation = false
+  bgp_route_propagation_enabled = true
 
   # Default route for internet traffic (can be modified for forced tunneling)
   route {
