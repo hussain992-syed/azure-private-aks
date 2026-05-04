@@ -81,11 +81,11 @@ module "networking" {
   environment = local.environment
   location   = local.location
 
-  vnet_address_space     = ["10.0.0.0/16"]
-  aks_subnet_prefix      = "10.0.0.0/22"    # ~1000 IPs for AKS nodes
-  acr_subnet_prefix      = "10.0.4.0/24"    # 256 IPs for ACR PE
-  keyvault_subnet_prefix = "10.0.5.0/24"    # 256 IPs for KV PE
-  jumpbox_subnet_prefix  = "10.0.6.0/24"    # 256 IPs for jumpbox/bastion
+  vnet_address_space     = ["10.1.0.0/16"]
+  aks_subnet_prefix      = "10.1.0.0/22"    # ~1000 IPs for AKS nodes
+  acr_subnet_prefix      = "10.1.4.0/24"    # 256 IPs for ACR PE
+  keyvault_subnet_prefix = "10.1.5.0/24"    # 256 IPs for KV PE
+  jumpbox_subnet_prefix  = "10.1.6.0/24"    # 256 IPs for jumpbox/bastion
 
   # Admin CIDR blocks (configure with your admin IPs)
   admin_cidr_blocks = var.admin_cidr_blocks
