@@ -32,6 +32,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   # Private cluster configuration - NO public API endpoint
   private_cluster_enabled             = true
   private_cluster_public_fqdn_enabled = false
+  private_dns_zone_id = "System"
   
   # Private DNS zone - either "None" (bring your own) or "System"
   private_dns_zone_id = var.private_dns_zone_id != "" ? var.private_dns_zone_id : "System"
