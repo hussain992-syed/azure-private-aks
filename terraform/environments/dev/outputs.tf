@@ -15,7 +15,7 @@ output "aks_name" {
 
 output "aks_oidc_issuer_url" {
   description = "OIDC issuer URL for workload identity"
-  value       = module.aks.oidc_issuer_url
+  value       = try(module.aks.oidc_issuer_url, null)
 }
 
 output "acr_login_server" {
