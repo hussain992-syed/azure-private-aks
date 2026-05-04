@@ -223,9 +223,9 @@ module "keyvault" {
 #------------------------------------------------------------------------------
 # Provider Configuration for Kubernetes Resources
 #------------------------------------------------------------------------------
-#provider "kubernetes" {
-  #host                   = module.aks.aks_host
-  #client_certificate     = base64decode(module.aks.aks_client_certificate)
-  #client_key             = base64decode(module.aks.aks_client_key)
-  #cluster_ca_certificate = base64decode(module.aks.aks_cluster_ca_certificate)
-#}
+# provider "kubernetes" {
+  # host                   = module.aks.aks_host
+  # client_certificate     = base64decode(module.aks.aks_client_certificate)
+  # client_key             = base64decode(module.aks.aks_client_key)
+  # cluster_ca_certificate = base64decode(module.aks.aks_cluster_ca_certificate)
+# }
