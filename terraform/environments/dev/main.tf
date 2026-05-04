@@ -121,7 +121,7 @@ module "aks" {
   kubernetes_version = "1.28"
   
   # Private cluster settings
-  private_dns_zone_id = "none"  # "none" or custom DNS zone ID
+  private_dns_zone_id = "None"  # "None" or custom DNS zone ID
   
   # Default node pool (system pool)
   default_node_count = 2
