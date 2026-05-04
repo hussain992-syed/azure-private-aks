@@ -54,7 +54,7 @@ resource "azurerm_kubernetes_cluster" "main" {
     os_disk_type        = "Managed"
     os_sku              = "Ubuntu"
     type                = "VirtualMachineScaleSets"
-    zones               = var.availability_zones
+    zones               = null
     enable_auto_scaling = var.enable_auto_scaling
     min_count           = var.enable_auto_scaling ? var.min_node_count : null
     max_count           = var.enable_auto_scaling ? var.max_node_count : null
