@@ -81,8 +81,8 @@ resource "azurerm_kubernetes_cluster" "main" {
     dns_service_ip     = var.dns_service_ip
     pod_cidr           = var.pod_cidr
 
-    # Outbound type - required for private clusters
-    outbound_type = "userDefinedRouting"  # Use custom routing or NAT gateway
+    # Outbound type - managed NAT gateway for private clusters
+    outbound_type = "managedNATGateway"
   }
 
   # RBAC with Azure AD
