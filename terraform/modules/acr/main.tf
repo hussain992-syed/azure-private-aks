@@ -92,6 +92,7 @@ resource "azurerm_role_assignment" "devops_acr_push" {
   scope                = azurerm_container_registry.main.id
   role_definition_name = "AcrPush"
   principal_id         = var.devops_service_principal_id
+  principal_type       = "ServicePrincipal"
   description          = "Allow Azure DevOps to push images to ACR"
 }
 
