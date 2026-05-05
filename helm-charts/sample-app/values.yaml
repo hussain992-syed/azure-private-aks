@@ -5,6 +5,16 @@ nameOverride: ""
 fullnameOverride: ""
 
 #------------------------------------------------------------------------------
+# Workload Identity Configuration
+#------------------------------------------------------------------------------
+workloadIdentity:
+  enabled: true
+  serviceAccount:
+    name: sample-app-sa
+    annotations:
+      azure.workload.identity/client-id: "36db466e-692a-4b4a-bcce-9a5354d54c40"
+
+#------------------------------------------------------------------------------
 # Image Configuration
 #------------------------------------------------------------------------------
 image:
