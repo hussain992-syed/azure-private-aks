@@ -108,3 +108,10 @@ Green deployment name
 {{- define "sample-app.greenName" -}}
 {{- printf "%s-green" (include "sample-app.fullname" .) }}
 {{- end }}
+
+{{/*
+Client ID for workload identity
+*/}}
+{{- define "sample-app.clientId" -}}
+{{- index .Values.workloadIdentity.serviceAccount.annotations "azure.workload.identity/client-id" -}}
+{{- end }}

@@ -1,60 +1,82 @@
+{{- if .Values.deployment.blue.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sample-app.blueName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sample-app.labels" . | nindent 4 }}
+    app: {{ include "sample-app.name" . }}
+    color: blue
 spec:
-  {{- if .Values.workloadIdentity.enabled }}
-  serviceAccountName: {{ include "sample-app.serviceAccountName" $ }}
-  {{- end }}
-
-  securityContext:
-    {{- toYaml .Values.securityContext | nindent 8 }}
-
-  containers:
-    - name: {{ .Chart.Name }}
-      image: "{{ .Values.image.repository }}:{{ include "sample-app.blueImageTag" . }}"
-      imagePullPolicy: {{ .Values.image.pullPolicy }}
-
-      ports:
-        - name: http
-          containerPort: 8080
-          protocol: TCP
-        {{- if .Values.monitoring.enabled }}
-        - name: metrics
-          containerPort: 9090
-          protocol: TCP
-        {{- end }}
-
-      # ✅ FIX: merged volumeMounts
-      volumeMounts:
-        - name: nginx-cache
-          mountPath: /var/cache/nginx
-        - name: tmp
-          mountPath: /tmp
-
-      env:
-        - name: APP_COLOR
-          value: "blue"
-        {{- range .Values.env }}
-        - name: {{ .name }}
-          value: {{ .value | quote }}
-        {{- end }}
-        {{- if .Values.secrets.enabled }}
-        {{- range .Values.secrets.keyvault.secrets }}
-        - name: {{ .envName }}
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "sample-app.fullname" $ }}-secrets
-              key: {{ .name }}
-              optional: false
-        {{- end }}
-        {{- end }}
-
-      resources:
-        {{- toYaml .Values.deployment.blue.resources | nindent 12 }}
+  replicas: {{ .Values.deployment.blue.replicas }}
+  selector:
+    matchLabels:
+      {{- include "sample-app.selectorLabels" . | nindent 6 }}
+      color: blue
+  template:
+    metadata:
+      labels:
+        {{- include "sample-app.selectorLabels" . | nindent 8 }}
+        app: {{ include "sample-app.name" . }}
+        color: blue
+    spec:
+      {{- if .Values.workloadIdentity.enabled }}
+      serviceAccountName: {{ .Values.workloadIdentity.serviceAccount.name }}
+      {{- end }}
 
       securityContext:
-        {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+        {{- toYaml .Values.securityContext | nindent 8 }}
 
-  # ✅ FIX: add BOTH volumes
-  volumes:
-    - name: nginx-cache
-      emptyDir: {}
-    - name: tmp
-      emptyDir: {}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ include "sample-app.blueImageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+
+          volumeMounts:
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: tmp
+              mountPath: /tmp
+
+          env:
+            - name: APP_COLOR
+              value: "blue"
+            {{- range .Values.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+
+          resources:
+            {{- toYaml .Values.deployment.blue.resources | nindent 12 }}
+
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+
+      {{- with .Values.deployment.blue.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.deployment.blue.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.deployment.blue.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
