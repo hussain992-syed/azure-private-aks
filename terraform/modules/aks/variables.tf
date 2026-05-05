@@ -163,7 +163,7 @@ variable "argocd_node_count" {
 variable "argocd_node_size" {
   description = "VM size for ArgoCD pool"
   type        = string
-  default     = "Standard_D4s_v3"
+  default     = "Standard_DC2s_v3"
 }
 
 variable "tags" {

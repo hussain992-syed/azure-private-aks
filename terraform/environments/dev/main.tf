@@ -147,6 +147,8 @@ module "aks" {
 
   # ArgoCD configuration
   create_argocd_node_pool   = true
+  argocd_node_count         = 1
+  argocd_node_size          = "Standard_DC2s_v3"
 
   tags = local.tags
 }
