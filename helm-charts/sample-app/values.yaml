@@ -144,7 +144,7 @@ env:
 
   # Secrets from Key Vault (using CSI driver)
 secrets:
-  enabled: true
+  enabled: false
   keyvault:
     name: ""  # Key Vault name (set by pipeline)
     tenantId: ""  # Azure AD Tenant ID
