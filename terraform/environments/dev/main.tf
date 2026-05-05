@@ -146,7 +146,7 @@ module "aks" {
   workload_max_count        = 5
 
   # ArgoCD configuration
-  create_argocd_node_pool   = false
+  create_argocd_node_pool   = true
 
   tags = local.tags
 }
