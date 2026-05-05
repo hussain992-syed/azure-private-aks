@@ -39,9 +39,7 @@ spec:
             - name: metrics
               containerPort: 9090
 
-          volumeMounts:
-            - name: tmp
-              mountPath: /tmp
+          volumeMounts: []
 
           env:
             - name: APP_COLOR
@@ -57,9 +55,7 @@ spec:
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
 
-      volumes:
-        - name: tmp
-          emptyDir: {}
+      volumes: []
 
       {{- with .Values.deployment.blue.nodeSelector }}
       nodeSelector:

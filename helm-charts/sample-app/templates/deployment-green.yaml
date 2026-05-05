@@ -111,12 +111,8 @@ spec:
             {{- toYaml .Values.deployment.green.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          volumeMounts:
-            - name: tmp
-              mountPath: /tmp
-      volumes:
-        - name: tmp
-          emptyDir: {}
+          volumeMounts: []
+      volumes: []
       {{- with .Values.deployment.green.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
