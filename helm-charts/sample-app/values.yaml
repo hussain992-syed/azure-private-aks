@@ -34,16 +34,16 @@ deployment:
   # Blue deployment configuration
   blue:
     enabled: true
-    replicas: 3
+    replicas: 1
     imageTag: ""  # If not set, uses global image.tag
-    
+
     resources:
       requests:
-        memory: "256Mi"
-        cpu: "250m"
+        memory: "128Mi"
+        cpu: "100m"
       limits:
-        memory: "512Mi"
-        cpu: "500m"
+        memory: "256Mi"
+        cpu: "200m"
     
     podAnnotations: {}
     podLabels: {}
@@ -68,16 +68,16 @@ deployment:
   # Green deployment configuration
   green:
     enabled: false  # Disabled by default, enabled during deployment
-    replicas: 3
+    replicas: 1
     imageTag: ""    # New version being deployed
-    
+
     resources:
       requests:
-        memory: "256Mi"
-        cpu: "250m"
+        memory: "128Mi"
+        cpu: "100m"
       limits:
-        memory: "512Mi"
-        cpu: "500m"
+        memory: "256Mi"
+        cpu: "200m"
     
     podAnnotations: {}
     podLabels: {}
