@@ -20,8 +20,8 @@ workloadIdentity:
 # Image Configuration
 #------------------------------------------------------------------------------
 image:
-  repository: "nginx"  # Will be set by CI/CD pipeline (e.g., myacr.azurecr.io/sample-app)
-  tag: "latest"         # Will be set by CI/CD pipeline (e.g., 1.0.0 or git sha)
+  repository: "nginxinc/nginx-unprivileged"  # Unprivileged nginx for security
+  tag: "latest"
   pullPolicy: IfNotPresent
 
 #------------------------------------------------------------------------------
