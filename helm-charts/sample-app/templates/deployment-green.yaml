@@ -41,8 +41,8 @@ spec:
         color: green
         version: {{ include "sample-app.greenImageTag" . | quote }}
     spec:
-      {{- with .Values.workloadIdentity.enabled }}
-      serviceAccountName: {{ include "sample-app.serviceAccountName" . }}
+      {{- if .Values.workloadIdentity.enabled }}
+      serviceAccountName: {{ include "sample-app.serviceAccountName" $ }}
       {{- end }}
       securityContext:
         {{- toYaml .Values.securityContext | nindent 8 }}
