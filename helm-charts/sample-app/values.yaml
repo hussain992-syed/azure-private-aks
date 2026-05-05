@@ -46,8 +46,7 @@ deployment:
     podAnnotations: {}
     podLabels: {}
     
-    nodeSelector:
-      workload: app
+    nodeSelector: {}
     
     tolerations: []
     
