@@ -146,7 +146,7 @@ module "aks" {
   workload_max_count        = 5
 
   # ArgoCD configuration
-  create_argocd_node_pool   = true
+  create_argocd_node_pool   = false
   argocd_node_count         = 1
   argocd_node_size          = "Standard_DC2s_v3"
 
