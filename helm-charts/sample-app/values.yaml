@@ -188,13 +188,7 @@ healthChecks:
 #------------------------------------------------------------------------------
 # Security Context
 #------------------------------------------------------------------------------
-securityContext:
-  runAsNonRoot: false
-  runAsUser: 0
-  runAsGroup: 0 
-  fsGroup: 0
-  seccompProfile:
-    type: RuntimeDefault
+securityContext: {}
 
 containerSecurityContext:
   allowPrivilegeEscalation: false
