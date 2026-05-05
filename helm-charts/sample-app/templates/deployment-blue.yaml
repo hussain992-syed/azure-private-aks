@@ -40,8 +40,6 @@ spec:
               containerPort: 9090
 
           volumeMounts:
-            - name: nginx-cache
-              mountPath: /var/cache/nginx
             - name: tmp
               mountPath: /tmp
 
@@ -60,8 +58,6 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
 
       volumes:
-        - name: nginx-cache
-          emptyDir: {}
         - name: tmp
           emptyDir: {}
 

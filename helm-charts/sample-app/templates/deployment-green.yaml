@@ -42,13 +42,13 @@ spec:
         version: {{ include "sample-app.greenImageTag" . | quote }}
     spec:
       {{- if .Values.workloadIdentity.enabled }}
-      serviceAccountName: {{ include "sample-app.serviceAccountName" $ }}
+      serviceAccountName: {{ .Values.workloadIdentity.serviceAccount.name }}
       {{- end }}
       securityContext:
         {{- toYaml .Values.securityContext | nindent 8 }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ include "sample-app.blueImageTag" . }}"
+          image: "{{ .Values.image.repository }}:{{ include "sample-app.greenImageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
