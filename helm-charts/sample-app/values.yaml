@@ -13,13 +13,15 @@ workloadIdentity:
     name: sample-app-sa
     annotations:
       azure.workload.identity/client-id: "36db466e-692a-4b4a-bcce-9a5354d54c40"
+  podLabels:
+    azure.workload.identity/use: "true"
 
 #------------------------------------------------------------------------------
 # Image Configuration
 #------------------------------------------------------------------------------
 image:
-  repository: ""  # Will be set by CI/CD pipeline (e.g., myacr.azurecr.io/sample-app)
-  tag: ""         # Will be set by CI/CD pipeline (e.g., 1.0.0 or git sha)
+  repository: "nginx"  # Will be set by CI/CD pipeline (e.g., myacr.azurecr.io/sample-app)
+  tag: "latest"         # Will be set by CI/CD pipeline (e.g., 1.0.0 or git sha)
   pullPolicy: IfNotPresent
 
 #------------------------------------------------------------------------------
@@ -80,8 +82,7 @@ deployment:
     podAnnotations: {}
     podLabels: {}
     
-    nodeSelector:
-      workload: app
+    nodeSelector: {}
     
     tolerations: []
     
@@ -131,18 +132,6 @@ ingress:
 #------------------------------------------------------------------------------
 # Azure Workload Identity Configuration
 #------------------------------------------------------------------------------
-workloadIdentity:
-  enabled: true
-  serviceAccount:
-    name: sample-app-sa
-    annotations:
-      # This will be set by the deployment pipeline or Terraform
-      azure.workload.identity/client-id: ""  # Workload identity client ID
-  
-  # Pod labels for workload identity
-  podLabels:
-    azure.workload.identity/use: "true"
-
 #------------------------------------------------------------------------------
 # Environment Variables and Secrets
 #------------------------------------------------------------------------------
